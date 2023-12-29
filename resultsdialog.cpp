@@ -45,14 +45,17 @@ void ResultsDialog::setTableModel()
 {
     QSqlQueryModel* model = db->getGameResultsModel();
 
-    // Встановлення моделі таблиць для QTableView
+    // Встановлення моделі таблиці для QTableView
     ui->resultsTable->setModel(model);
     ui->resultsTable->verticalHeader()->setVisible(false);
+
 
     setModelSettings(*model);
 
     fillComboBoxes();
 }
+
+
 
 
 

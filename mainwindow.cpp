@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QMessageBox>
 
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -22,34 +23,37 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_loginButton_clicked()
 {
-    QString username = ui->name->text();
+    QString email = ui->email->text();
     QString password = ui->password->text();
 
     // Перевірка на пусті поля
-    if (username.isEmpty() || password.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Введіть ім'я і пароль.");
+    if (email.isEmpty() || password.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Введіть email і пароль.");
         return;
     }
 
-    // Логіка отримання користувача з бази даних
-    bool isAdmin = false;
+    // Перевірка, чи email має символ '@'
+    if (!email.contains('@')) {
+        QMessageBox::warning(this, "Error", "Невірний формат email.");
+        return;
+    }
+
     try {
-        isAdmin = db->getUser(username, password);
-        qDebug()<<isAdmin;
+        User user = db->getUser(email, password);
+
+        bool isAdmin = user.isAdmin();
+
+        this->resultsDialog = new ResultsDialog(isAdmin);
+        resultsDialog->show();
+        this->hide();
+
+        ui->email->clear();
+        ui->password->clear();
+        connect(resultsDialog, &ResultsDialog::backToLogin, this, &MainWindow::show);
     } catch (const std::runtime_error &error) {
         // Виведення повідомлення про помилку
         QMessageBox::warning(this, "Error", error.what());
-        return;
     }
-
-    this->resultsDialog = new ResultsDialog(isAdmin);
-    resultsDialog->show();
-    this->hide();
-
-    ui->name->clear();
-    ui->password->clear();
-    connect(resultsDialog,&ResultsDialog::backToLogin,this,&MainWindow::show);
-
 }
 
 

@@ -24,17 +24,24 @@ void RegistrationDialog::on_registerButton_clicked()
 
     // Перевірка на пусті поля
     if (username.isEmpty() || password.isEmpty() || email.isEmpty() || phoneNumber.isEmpty()) {
-        qDebug() << "Please fill in all fields.";
         QMessageBox::warning(this, "Error", "Заповніть всі поля.");
         return;
     }
 
-    if (db->registerUser(username, password, false, email, phoneNumber)) {
-        qDebug() << "User registration successful.";
+    // Перевірка, чи email має символ '@'
+    if (!email.contains('@')) {
+        QMessageBox::warning(this, "Error", "Невірний формат email.");
+        return;
+    }
+
+    try {
+        this->user = new User(username, password, false, email, phoneNumber);
+        db->registerUser(*user);
         this->close();
-    } else {
-        qDebug() << "User registration failed.";
+    } catch (const std::runtime_error &error) {
+        QMessageBox::warning(this, "Error", error.what());
     }
 }
+
 
 

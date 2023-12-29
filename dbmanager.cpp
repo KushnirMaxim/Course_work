@@ -1,4 +1,5 @@
 #include "dbmanager.h"
+#include <QMessageBox>
 #include <stdexcept>  // Для std::runtime_error
 
 
@@ -32,56 +33,66 @@ QSqlDatabase DBManager::getDB()
     return db;
 }
 
-bool DBManager::registerUser(const QString &username, const QString &password, bool isAdmin, const QString &email, const QString &phoneNumber) {
-    QSqlQuery query;
-    query.prepare("INSERT INTO users (username, password, isAdmin, email, phone_number) "
-                  "VALUES (:username, :password, :isAdmin, :email, :phone_number)");
-    query.bindValue(":username", username);
-    query.bindValue(":password", password);
-    query.bindValue(":isAdmin", isAdmin);
-    query.bindValue(":email", email);
-    query.bindValue(":phone_number", phoneNumber);
 
-    if (query.exec()) {
-        return true;  // Успішна реєстрація
-    } else {
-        qDebug() << "User registration failed:" << query.lastError().text();
-        return false; // Невдача реєстрації
-    }
-}
-
-
-
-bool DBManager::getUser(const QString &name, const QString &password)
+User DBManager::getUser(const QString &email, const QString &password)
 {
     QSqlQuery query;
-    query.prepare("SELECT * FROM Users WHERE username = :username AND password = :password");
-    query.bindValue(":username", name);
+    query.prepare("SELECT * FROM Users WHERE email = :email AND password = :password");
+    query.bindValue(":email", email);
     query.bindValue(":password", password);
     int userId = 0;
     bool isAdmin = false;
 
     if (query.exec() && query.next()) {
-        // Користувач із вказаним логіном і паролем знайдений
+        // User with the specified email and password found
         userId = query.value("user_id").toInt();
         isAdmin = query.value("isAdmin").toBool();
         qDebug() << "User found. User ID:" << userId;
 
-        // Перевірка, чи користувач - адміністратор
-        if (isAdmin) {
-            qDebug() << "User is an admin.";
-            return true;
-        }
-        else {
-            qDebug() << "User is not an admin.";
-        }
+        User user(query.value("username").toString(),query.value("password").toString(),isAdmin, query.value("email").toString(), query.value("phone_number").toString());
+
+        return user;
     }
     else {
-        throw std::runtime_error("Користувача не знайдено, або дані введено некоректно.");  // Виняток
+        throw std::runtime_error("Користувача не знайдено, або дані введено некоректно.");  // Exception
+    }
+}
+
+bool DBManager::registerUser(User &user)
+{
+    QSqlQuery query;
+
+    // перевірка по email та номеру
+    query.prepare("SELECT COUNT(*) FROM users WHERE email = :email OR phone_number = :phone_number");
+    query.bindValue(":email", user.getEmail());
+    query.bindValue(":phone_number", user.getPhoneNumber());
+
+    if (query.exec() && query.next()) {
+        int count = query.value(0).toInt();
+        if(count>0){
+            throw std::runtime_error("Користувач з таким email або номером вже присутній.");
+        }
     }
 
-    return false;
+    query.prepare("INSERT INTO users (username, password, isAdmin, email, phone_number) "
+                  "VALUES (:username, :password, :isAdmin, :email, :phone_number)");
+
+    query.bindValue(":username", user.getUsername());
+    query.bindValue(":password", user.getPassword());
+    query.bindValue(":isAdmin", user.isAdmin());
+    query.bindValue(":email", user.getEmail());
+    query.bindValue(":phone_number", user.getPhoneNumber());
+
+    if (query.exec()) {
+        qDebug() << "User registration successful.";
+        return true;
+    } else {
+        qDebug() << "User registration failed:" << query.lastError().text();
+        return false;
+    }
 }
+
+
 
 bool DBManager::addTeam(const QString teamName, const std::vector<Player> &players, int wins, int loses)
 {
@@ -220,6 +231,11 @@ QSqlQueryModel* DBManager::getGameResultsModel(const QString& teamNameFilter) co
     }
 
     model->setQuery(query);
+    model->setHeaderData(0, Qt::Horizontal, "Команда 1");
+    model->setHeaderData(1, Qt::Horizontal, "Рахунок");
+    model->setHeaderData(2, Qt::Horizontal, "Команда 2");
+    model->setHeaderData(3, Qt::Horizontal, "Дата гри");
+    model->setHeaderData(4, Qt::Horizontal, "Локація");
 
     if (model->lastError().isValid()) {
         qDebug() << "Error retrieving game results:" << model->lastError().text();
@@ -341,7 +357,7 @@ bool DBManager::createTables()
             ||
             !query.exec("CREATE TABLE users ("
                         "user_id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                        "username VARCHAR(255) UNIQUE,"
+                        "username VARCHAR(255),"
                         "password VARCHAR(255),"
                         "isAdmin BOLEAN,"
                         "email VARCHAR(255),"
